@@ -39,7 +39,7 @@ ny_noaa
 **There are `r nrow(ny_noaa)` rows and `r ncol(ny_noaa)` columns in this dataset. Each row appears to be a different data collection point on a given "date" from a location with a unique "id". Measurements from these locations and times (measured as date) include data for variables called: prcp, snow, snwd, tmax, and tmin. I also view the first ten entries by running the dataset name. Of note, tmin and tmax are being treated as character variables when they should be numeric.** 
 
 Below I treat temperature as numeric. 
-```{r}
+```{r temp to number}
 hw_df =
   ny_noaa |> 
   mutate(
@@ -49,7 +49,7 @@ hw_df =
 ```
 
 Below I summarize the mean, min, and max of the maximum and minimum temperatures. `na.rm = TRUE` removes missing values from calculations.
-```{r}
+```{r mean min max}
 hw_df |> 
   summarize(
     tmax_mean = mean(tmax, na.rm = TRUE),
@@ -63,7 +63,7 @@ hw_df |>
 **Something seems odd here with the values of tmin and max. Temperatures of such extremes (high and low) seem a bit implausible. Especially in NY. Clerical error? Lets look.**
 
 Below I make a `geom_boxplot` to view the spread of the datapoints and find any outliers.
-```{r}
+```{r checking outliers}
 hw_df |> 
   ggplot(aes(y=tmax)) +
   geom_boxplot()
@@ -71,7 +71,7 @@ hw_df |>
 **Strange, extremes don't seem to be outliers. I also find it hard to believe the average maximum temperature is over 100 degrees (Fahrenheit or Celsius). Looking at data description, temperature values are reported in tenths of degrees celcius, NOT degrees. That is weird, will convert that soon so numbers are more sensible. Lets first look at how many missing values there are.**
 
 Below I will use `summarize()` to view missing across all data collection variables.
-```{r}
+```{r summary}
 hw_df |> 
   summarize(
     prcp_missing = sum(is.na(prcp)),
@@ -86,7 +86,7 @@ hw_df |>
 ## Data Cleaning
 
 Below I drop rows with missing values, create separate variables for year, month, and day. I also convert temperature to degrees Celsius. 
-```{r}
+```{r mutating}
 hw_df = 
   hw_df |> 
   drop_na() |> 
@@ -102,7 +102,7 @@ hw_df
 ```
 
 Below I check to see how the values for tmax and tmin look now: 
-```{r}
+```{r checking values}
 hw_df |> 
   ggplot(aes(y=tmax))+
   geom_boxplot() 
@@ -114,7 +114,7 @@ hw_df|>
 **Looks a lot more sensible.**
 
 What are the most common values for snowfall? Answering below using `geom_histogram` generated in `ggplot`:
-```{r}
+```{r snowfall common}
 hw_df |>
   ggplot(aes(x=snwd))+
   geom_histogram()
@@ -175,15 +175,128 @@ t_max_t_min + snowflake
   
 # Problem 2
 
-Accelerometers have become an appealing alternative to self-report techniques for studying physical activity in observational studies and clinical trials, largely because of their relative objectivity. During observation periods, the devices can measure MIMS in a short period; one-minute intervals are common. Because accelerometers can be worn comfortably and unobtrusively, they produce around-the-clock observations.
+## Data Wrangling
 
-This problem uses accelerometer data collected on 250 participants in the NHANES study. The participants’ demographic data can be downloaded here, and their accelerometer data can be downloaded here. Variables *MIMS are the MIMS values for each minute of a 24-hour day starting at midnight.
+Below I use `read_csv` to bring in both datasets. I set missing value information and `col types = false` so that the information doesn't auto populate in the rednered github document. Then I merge them. There are `250` observations in both datasets and the new dataset. 
 
-Load, tidy, merge, and otherwise organize the data sets. Your final dataset should include all originally observed variables; exclude participants less than 21 years of age, and those with missing demographic data; and encode data with reasonable variable classes (i.e. not numeric, and using factors with the ordering of tables and plots in mind).
+```{r load & merge}
+mims = 
+  read_csv("data/mims.csv", na = c("NA", "", "."),
+           show_col_types = FALSE)
 
-Produce a reader-friendly table for the number of men and women in each education category, and create a visualization of the age distributions for men and women in each education category. Comment on these items.
+dem = 
+  read_csv("data/dem.csv", na = c("NA", "", "."),
+           skip = 4,
+           show_col_types = FALSE)
 
-Traditional analyses of accelerometer data focus on the total activity over the day. Using your tidied dataset, aggregate across minutes to create a total activity variable for each participant. Plot these total activities (y-axis) against age (x-axis); your plot should compare men to women and have separate panels for each education level. Include a trend line or a smooth to illustrate differences. Comment on your plot.
+merged <- full_join(dem, mims, by = "SEQN")
+```
+
+Below I `drop_na()` so there are no rows with missing values and I recode sex and education to character variables. Then I `pivot_longer()` such that each row is no longer unique to 1 SEQN, but rather each row is an entry per SEQN per minute. I `filter()` to exclude entries where age is less than 21. I also `mutate()` such that minute values are numeric, there is a variable for hour of the day, and a variable for average mims unit per hour of the day. 
+```{r tidy & organize}
+longer = 
+  merged |> 
+  drop_na() |> 
+  filter(age >= 21) |>
+  mutate(
+    sex = recode(sex, `1` = "Male", `2` = "Female")) |>
+  mutate(
+    education = recode(education, `1` = "Less Than High School", 
+                       `2` = "High School", 
+                       `3` = "More Than High School")
+  ) |>
+  mutate(education = 
+           factor(education, levels = c("Less Than High School", 
+                                        "High School", 
+                                        "More Than High School"))
+  ) |> 
+  pivot_longer(
+    cols = starts_with("min"),
+    names_to = "minute",         
+    values_to = "mims_unit"
+  ) |> 
+  mutate(
+    minute = as.numeric(gsub("min", "", minute))
+  ) |>
+  mutate(
+    hour = ceiling(minute / 60))|> 
+  group_by(SEQN, hour)|> 
+  mutate(
+    hour = ceiling(minute / 60))|> 
+  mutate(
+    avg_hourly_mims_unit = mean(mims_unit)) |> 
+  group_by(SEQN, hour)     
+```
+
+## Tables & Plots
+
+Below I produce a table for the number of men and women in each education category using `knitr`.
+```{r}
+table=
+  longer |> 
+  group_by(education, sex) |> 
+  summarize(count = n(), .groups = 'drop') |> 
+  pivot_wider(
+    names_from = sex, 
+    values_from = count, 
+    values_fill = list(count = 0))
+
+
+knitr::kable(table, caption = "Count of Men and Women by Education")
+
+```
+Below I create a visualization of the age distributions for men and women in each education category.
+```{r}
+men =
+longer |> 
+  filter(sex == "Male") |> 
+  ggplot(aes(x = age)) +
+  geom_histogram(position = "identity", alpha = 0.3, bins = 15) +
+  facet_wrap(~ education) +
+  labs(x = "Age", 
+       y = "Number of Men") +
+  theme_minimal()
+
+women =
+longer |> 
+  filter(sex == "Female") |> 
+  ggplot(aes(x = age)) +
+  geom_histogram(position = "identity", alpha = 0.3, bins = 15) +
+  facet_wrap(~ education) +
+  labs(x= "",
+       y = "Number of Women") +
+  theme_minimal()
+
+combined_plot=
+  women / men + 
+  plot_layout(guides = "collect") + 
+  plot_annotation(title = "Age Distributions by Sex and Education Category")
+
+combined_plot
+
+```
+
+**Among study participants, there are considerably more males with high school education than female with high school education. About the same across sexes for those with less than high school and for those with more than high school (although one might say there are more women than men if you think 85000 is appreciably different from 81000, I do not).**
+
+## Total Activity 
+
+Below I aggregate across minutes to create a total activity variable for each participant. Then I plot these total activities (y-axis) against age (x-axis). I  compare men to women and have separate panels for each education level. I include a smooth to illustrate differences.
+```{r}
+total_activity =
+  longer |> 
+  group_by(SEQN, age, sex, education) |> 
+  summarize(total_activity = sum(mims_unit, na.rm = TRUE), 
+            .groups = "drop")
+
+total_activity |>  
+  ggplot(aes(x= age, y= total_activity, color = sex))+
+  geom_point()+ 
+  geom_smooth(se = FALSE)+
+  facet_wrap(~education)+
+  labs(x ="Age", y= "Total Daily Activity", title = "Effect of Age on Daily Activity by Education Status")
+
+```
+**Across all levels of education, daily activity decreases with age. The slope of the decease is much more noticeable across the life course with those who have less than a high school education compared to other groups. Among those who complete high school, there is a steep reduction from age 40 to 60 with a plateau for the remainder of the life course.**
 
 Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
 
