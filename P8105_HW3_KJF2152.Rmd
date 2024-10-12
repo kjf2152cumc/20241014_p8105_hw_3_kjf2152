@@ -231,7 +231,7 @@ longer =
 ## Tables & Plots
 
 Below I produce a table for the number of men and women in each education category using `knitr`.
-```{r}
+```{r kable}
 table=
   longer |> 
   group_by(education, sex) |> 
@@ -246,7 +246,7 @@ knitr::kable(table, caption = "Count of Men and Women by Education")
 
 ```
 Below I create a visualization of the age distributions for men and women in each education category.
-```{r}
+```{r age dist.}
 men =
 longer |> 
   filter(sex == "Male") |> 
@@ -281,7 +281,7 @@ combined_plot
 ## Total Activity 
 
 Below I aggregate across minutes to create a total activity variable for each participant. Then I plot these total activities (y-axis) against age (x-axis). I  compare men to women and have separate panels for each education level. I include a smooth to illustrate differences.
-```{r}
+```{r aggregate plot}
 total_activity =
   longer |> 
   group_by(SEQN, age, sex, education) |> 
@@ -300,7 +300,7 @@ total_activity |>
 
 
 Below I make a three-panel hex plot that shows the hourly measures of MIMS unit by education level and sex. The reason I chose a hex plot is because it provides a visualization of when both sexes are in a space on the graph or not. 
-```{r}
+```{r hexplot}
 longer |> 
   ggplot(aes(x=hour, y=mims_unit, fill = sex))+
   geom_hex(alpha=0.2) + 
@@ -310,15 +310,119 @@ longer |>
 
 # Problem 3
 
-Citi Bike is a bike sharing system in New York City; riders can rent pedal-powered or electric bikes from starting stations and return them to another station at their destination. Introduced in 2013, the system is immensely popular and expanded rapidly. Riders who use this system often may become “members” with lower rental rates.
+## Data Wrangling
 
-This zip file contains data on rides taken on the NYC Citi Bike system. Files contain 1% of all rides with a total duration less than 4 hours in each of four months. Import, clean, and tidy these data, and describe the resulting dataset.
+Here I use `read_csv` to import all four csv files. I use `nrow` to keep track of observations in each dataset and sum them to ensure that I have the correct number when I merge them all. 
+```{r bring in data}
+jan20 = 
+  read_csv("data/citibike/Jan 2020 Citi.csv", show_col_types = FALSE) |> 
+  mutate(month = "Jan", year = 2020)
+nrow(jan20)
 
-Produce a reader-friendly table showing the total number of rides in each combination of year and month separating casual riders and Citi Bike members. Comment on these results.
+jan24 = 
+  read_csv("data/citibike/Jan 2024 Citi.csv", show_col_types = FALSE) |> 
+  mutate(month = "Jan", year = 2024)
+nrow(jan24)
 
-Make a table showing the 5 most popular starting stations for July 2024; include the number of rides originating from these stations.
+jul20 = 
+  read_csv("data/citibike/July 2020 Citi.csv", show_col_types = FALSE) |> 
+  mutate(month = "Jul", year = 2020)
+nrow(jul20)
 
-Make a plot to investigate the effects of day of the week, month, and year on median ride duration. This plot can include one or more panels, but should facilitate comparison across all variables of interest. Comment on your observations from this plot.
+jul24 = 
+  read_csv("data/citibike/July 2024 Citi.csv", show_col_types = FALSE) |> 
+  mutate(month = "Jul", year = 2024)
+nrow(jul24)
 
-There were relatively few electric Citi Bikes in 2020, but many more are available now. For data in 2024, make a figure that shows the impact of month, membership status, and bike type on the distribution of ride duration. Comment on your results.
+12420+18861+21048+47156
+```
+Here I use `bind_rows` to merge all four datasets into "city" and confirm correct number of observations using `nrow`. 
+```{r bindrows}
+citi = 
+  bind_rows(jan20, jul20, jan24, jul24)
+nrow(citi)
+```
 
+## Tables
+
+Below I create a `citi_table` dataframe that groups the city dataset by year, month, member status, assigns counts, makes a `year_month` variable (because I had made them seperate variables), pivots wider to make the table, and arranges them by the new variable. 
+```{r table by date and member}
+citi_table =
+  citi |>  
+  group_by(year, month, member_casual) |>  
+  summarize(count = n(), .groups = 'drop') |> 
+  mutate(year_month = paste(month, year)) |>
+  select(year_month, member_casual, count) |> 
+  pivot_wider(
+    names_from = member_casual,   
+    values_from = count          
+  ) |>
+  arrange(year_month) 
+
+citi_table
+  
+```
+
+Below I make a table showing the 5 most popular starting stations for July 2024 and I include the number of rides originating from these stations.
+```{r popular}
+popular = 
+  citi |>  
+  filter(month == "Jul", year == 2024) |>
+  group_by(start_station_name) |> 
+  summarize(num_rides = n()) |>
+  arrange(desc(num_rides)) |> 
+  head(5)
+
+popular
+```
+## Plots
+
+Below I make a plot to investigate the effects of day of the week, month, and year on median ride duration. This plot includes panels using`facet_wrap`. Help in formatting from [r-graph-gallery.com](https://r-graph-gallery.com/223-faceting-with-ggplot2.html#:~:text=Faceting%20with%20facet_wrap()&text=It%20builds%20a%20new%20chart,charts%20on%20several%20rows%2Fcolumns.).
+```{r ride duration}
+ride_summary = 
+  citi |> 
+  group_by(weekdays, month, year) |> 
+  summarize(median_duration = median(duration, na.rm = TRUE)) |> 
+  ungroup()
+
+ride_summary |>  
+  ggplot(aes(x= weekdays, y = median_duration, color = as.factor(year))) +
+  geom_line(size = 1.2, aes(group = interaction(year, month))) +
+  facet_wrap(~month) +
+  labs(
+    title = "Median Ride Duration by Day of the Week, Month, and Year",
+    x = "Day of the Week",
+    y = "Median Ride Duration (minutes)",
+    color = "Year"
+  ) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+```
+**It seems that median ride duration is longer on the weekends. It was longer overall in 2020, quite significantly so when comparing July of 2020 to July of 2024. July 2020 had much more ridership than July 2024. The gap between 2024 and 2020 is much smaller in January. Maybe COVID played a role in this, since many more people were at home in 2020 and the only solace was getting outside. Additionally, people could have been afraid of using public transportation with other patrons.**
+
+Below I use data in 2024 to make a figure that shows the impact of month, membership status, and bike type on the distribution of ride duration. I chose to use boxplots across each different group. 
+```{r boxplots}
+
+citi_2024 = 
+  citi |> 
+  filter(year == 2024)
+
+citi_2024 |> 
+  ggplot(aes(
+    x = interaction(month, member_casual, rideable_type), 
+    y = duration)) +
+  geom_boxplot(aes(fill = member_casual), outlier.colour = NA, 
+               position = position_dodge(0.8)) +
+  labs(
+    title = "Distribution of Ride Duration by Month, Membership Status, and Bike Type in 2024",
+    x = "Month, Membership Status, and Bike Type",
+    y = "Ride Duration (minutes)",
+    fill = "Membership Status"
+  ) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+It seems like there isn't too much of a difference in ride duration across month in 2024, type of bike used in 2024, or member status. Maybe even higher ridership among casual riders than members overall. 
