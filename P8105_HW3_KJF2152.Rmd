@@ -9,8 +9,7 @@ output:
 
 # Set-Up
 
-Here I call libraries. This is updated throughout completion of the homework such that there is not multiple spots in the project where libraries are called. 
-
+Here I call libraries. This is updated throughout completion of the homework such that there is not multiple spots in the project where libraries are called.
 ```{r calling libraries, message=FALSE}
 library(tidyverse)
 library(p8105.datasets)
@@ -20,31 +19,98 @@ library(p8105.datasets)
 
 # Problem 1
 
-Below I bring in the ny_noaa data from the p8105.datasets package. 
-
+Below I bring in the ny_noaa data from the p8105.datasets package as instructed.
 ```{r noaa data}
 data("ny_noaa")
+
 ```
 
 ## Data Description
 
 Here I determine some basic structurual information using nrow, ncol, and colnames functions to see row count, column count, and variables names, respectively.
-
 ```{r}
 nrow(ny_noaa)
 ncol(ny_noaa)
 colnames(ny_noaa)
+ny_noaa
 ```
 
-There are 7 columns and 2,595,176 rows in this dataset. Each row appears to be a different data collection point on a given "date" from a location with a unique "id". Measurements from these locations and times (measured as date) include data for variables called: prcp, snow, snwd, tmax, and tmin. I supplemented my understanding by using "View(ny_noaa)" in the console which is not included here for ease of read/knit/etc. 
+**There are 7 columns and 2,595,176 rows in this dataset. Each row appears to be a different data collection point on a given "date" from a location with a unique "id". Measurements from these locations and times (measured as date) include data for variables called: prcp, snow, snwd, tmax, and tmin. I also view the first ten entries by running the dataset name. Of note, tmin and tmax are being treated as character variables when they should be numeric.** 
 
-describing some key variables
+Below I treat temperature as numeric. 
+```{r}
+hw_df =
+  ny_noaa |> 
+  mutate(
+    tmax = as.numeric(na_if(na_if(tmax, ""), "NA")),  
+    tmin = as.numeric(na_if(na_if(tmin, ""), "NA"))  
+  )
+```
 
-indicating the extent to which missing data is an issue. 
+Below I summarize the mean, min, and max of the maximum and minimum temperatures. na.rm = TRUE removes missing values from calculations.
+```{r}
+hw_df |> 
+  summarize(
+    tmax_mean = mean(tmax, na.rm = TRUE),
+    tmax_min = min(tmax, na.rm = TRUE),
+    tmax_max = max(tmax, na.rm = TRUE),
+    tmin_mean = mean(tmin, na.rm = TRUE),
+    tmin_min = min(tmin, na.rm = TRUE),
+    tmin_max = max(tmin, na.rm = TRUE)
+  )
+```
+**Something seems odd here with the values of tmin and max. Temperatures of such extremes (high and low) seem a bit implausible. Especially in NY. Clerical error? Lets look.**
+
+Below I make a boxplot to view the spread of the datapoints and find any outliers.
+```{r}
+hw_df |> 
+  ggplot(aes(y=tmax)) +
+  geom_boxplot()
+```
+**Strange, extremes don't seem to be outliers. I also find it hard to believe the average maximum temperature is over 100 degrees (Fahrenheit or Celsius). Looking at data description, temperature values are reported in tenths of degrees celcius, NOT degrees. That is weird, will convert that soon so numbers are more sensible. Lets first look at how many missing values there are.**
+
+Below I will use summarize() to view missing across all data collection variables.
+```{r}
+hw_df |> 
+  summarize(
+    prcp_missing = sum(is.na(prcp)),
+    snow_missing = sum(is.na(snow)),
+    snwd_missing = sum(is.na(snwd)),
+    tmax_missing = sum(is.na(tmax)),
+    tmin_missing = sum(is.na(tmin))
+  )
+```
+**There are over 2 million rows in this dataset. More than half of the rows have missing data. I would say this is problematic.**
 
 ## Data Cleaining
 
-Do some data cleaning. Create separate variables for year, month, and day. Ensure observations for temperature, precipitation, and snowfall are given in reasonable units. 
+Below I drop rows with missing values, create separate variables for year, month, and day. I also convert temperature to degrees Celsius. 
+```{r}
+hw_df = 
+  hw_df |> 
+  drop_na() |> 
+  mutate(
+    year = year(date),
+    month = month(date),
+    day = day(date),
+    tmax = tmax/10, 
+    tmin = tmin/10
+  )
+
+hw_df
+```
+
+Below I check to see how the values for tmax and tmin look now: 
+```{r}
+hw_df |> 
+  ggplot(aes(y=tmax))+
+  geom_boxplot() 
+
+hw_df|> 
+  ggplot(aes(y=tmin))+
+  geom_boxplot()
+```
+**Looks a lot more sensible.**
 
 ## Explortatory Analysis
 
