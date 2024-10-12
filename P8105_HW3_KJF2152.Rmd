@@ -13,6 +13,7 @@ Here I call libraries. This is updated throughout completion of the homework suc
 ```{r calling libraries, message=FALSE}
 library(tidyverse)
 library(p8105.datasets)
+library(patchwork)
 
 ```
 
@@ -27,15 +28,15 @@ data("ny_noaa")
 
 ## Data Description
 
-Here I determine some basic structurual information using nrow, ncol, and colnames functions to see row count, column count, and variables names, respectively.
-```{r}
+Here I determine some basic structurual information using `nrow`, `ncol`, and `colnames` functions to see row count, column count, and variables names, respectively.
+```{r structure}
 nrow(ny_noaa)
 ncol(ny_noaa)
 colnames(ny_noaa)
 ny_noaa
 ```
 
-**There are 7 columns and 2,595,176 rows in this dataset. Each row appears to be a different data collection point on a given "date" from a location with a unique "id". Measurements from these locations and times (measured as date) include data for variables called: prcp, snow, snwd, tmax, and tmin. I also view the first ten entries by running the dataset name. Of note, tmin and tmax are being treated as character variables when they should be numeric.** 
+**There are `r nrow(ny_noaa)` rows and `r ncol(ny_noaa)` columns in this dataset. Each row appears to be a different data collection point on a given "date" from a location with a unique "id". Measurements from these locations and times (measured as date) include data for variables called: prcp, snow, snwd, tmax, and tmin. I also view the first ten entries by running the dataset name. Of note, tmin and tmax are being treated as character variables when they should be numeric.** 
 
 Below I treat temperature as numeric. 
 ```{r}
@@ -47,7 +48,7 @@ hw_df =
   )
 ```
 
-Below I summarize the mean, min, and max of the maximum and minimum temperatures. na.rm = TRUE removes missing values from calculations.
+Below I summarize the mean, min, and max of the maximum and minimum temperatures. `na.rm = TRUE` removes missing values from calculations.
 ```{r}
 hw_df |> 
   summarize(
@@ -61,7 +62,7 @@ hw_df |>
 ```
 **Something seems odd here with the values of tmin and max. Temperatures of such extremes (high and low) seem a bit implausible. Especially in NY. Clerical error? Lets look.**
 
-Below I make a boxplot to view the spread of the datapoints and find any outliers.
+Below I make a `geom_boxplot` to view the spread of the datapoints and find any outliers.
 ```{r}
 hw_df |> 
   ggplot(aes(y=tmax)) +
@@ -69,7 +70,7 @@ hw_df |>
 ```
 **Strange, extremes don't seem to be outliers. I also find it hard to believe the average maximum temperature is over 100 degrees (Fahrenheit or Celsius). Looking at data description, temperature values are reported in tenths of degrees celcius, NOT degrees. That is weird, will convert that soon so numbers are more sensible. Lets first look at how many missing values there are.**
 
-Below I will use summarize() to view missing across all data collection variables.
+Below I will use `summarize()` to view missing across all data collection variables.
 ```{r}
 hw_df |> 
   summarize(
@@ -82,7 +83,7 @@ hw_df |>
 ```
 **There are over 2 million rows in this dataset. More than half of the rows have missing data. I would say this is problematic.**
 
-## Data Cleaining
+## Data Cleaning
 
 Below I drop rows with missing values, create separate variables for year, month, and day. I also convert temperature to degrees Celsius. 
 ```{r}
@@ -112,20 +113,66 @@ hw_df|>
 ```
 **Looks a lot more sensible.**
 
+What are the most common values for snowfall? Answering below using `geom_histogram` generated in `ggplot`:
+```{r}
+hw_df |>
+  ggplot(aes(x=snwd))+
+  geom_histogram()
+
+```
+**The most common value for snowfall is 0mm. If you google average annual days of snowfall in NYS, you will find that it varries across city and at its highest is about 52 day (in Buffalo, thank you Lake Erie). The data has over two decades of data during which period most of the days per year do not have snowfall.**
+
 ## Explortatory Analysis
 
-For snowfall, what are the most commonly observed values? Why?
+Make a facetted plot showing the average max temperature in January and in July in each station across years. This is done below using `ggplot.` I received additional formating guidance from [r-graph-gallery.com](https://r-graph-gallery.com/223-faceting-with-ggplot2.html#:~:text=Faceting%20with%20facet_wrap()&text=It%20builds%20a%20new%20chart,charts%20on%20several%20rows%2Fcolumns.).
+```{r facetted plot}
+avg_temp =
+  hw_df |>
+  filter(month %in% c(1, 7)) |> 
+  group_by(id, year, month) |> 
+  summarize(avg_tmax = mean(tmax, na.rm = TRUE), .groups = 'drop')
 
-Make a two-panel plot showing the average max temperature in January and in July in each station across years. 
+ggplot(avg_temp, aes(x = year, y = avg_tmax, color = factor(month))) +
+  geom_line() +
+  facet_wrap(
+    ~ month, scales = "free_y", 
+    labeller = labeller(month = c(`1` = "January", `7` = "July"))) +
+  labs(title = "Average Max Temperature in January and July by Station",
+       x = "Year",
+       y = "Average Max Temperature (°C)",
+       color = "Month") +
+  theme_minimal()
 
-Is there any observable / interpretable structure? Any outliers?
+```
 
-Make a two-panel plot showing 
-  (i) tmax vs tmin for the full dataset (note that a scatterplot may not be the 
-  best option); and 
-  (ii) make a plot showing the distribution of snowfall values greater than 0 and 
-  less than 100 separately by year.
+**Average maximum temperature seems to be increasing over time. Average minimum temperature doesn't have as much of a positive association with year as maximum does. There seems to be an outlier in ~ 1996 and 1982 for average max temp in January and ~ 1988 for average min temp in July.**
 
+Below I use  `patchwork` and `gpplot` to make a two pannel figure. See [P8105 Visualization 2](https://p8105.com/visualization_pt2.html#patchwork). 
+```{r two panel figure}
+t_max_t_min = 
+  hw_df |> 
+  ggplot(aes(x = tmax, y = tmin)) +
+  geom_hex() +
+  labs(title = "tmax vs tmin",
+       x = "Max Temperature (°C)",
+       y = "Min Temperature (°C)") +
+  theme_minimal()
+
+snowflake = 
+  hw_df |>
+  filter(snow > 0 & snow < 100) |> 
+  ggplot(aes(x = snow)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  facet_wrap(~ year) +
+  labs(title = "Distribution of Snowfall Values (0 < snow < 100)",
+       x = "Snowfall (inches)",
+       y = "Frequency") +
+  theme_minimal()
+
+t_max_t_min + snowflake
+
+```
+  
 # Problem 2
 
 Accelerometers have become an appealing alternative to self-report techniques for studying physical activity in observational studies and clinical trials, largely because of their relative objectivity. During observation periods, the devices can measure MIMS in a short period; one-minute intervals are common. Because accelerometers can be worn comfortably and unobtrusively, they produce around-the-clock observations.
