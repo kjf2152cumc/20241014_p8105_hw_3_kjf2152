@@ -3,7 +3,7 @@ title: "Homework 3"
 author: "Kaleb J. Frierson"
 date: "2024-10-12"
 output:
-  github_document:
+  html_document:
     toc: TRUE
 ---
 
@@ -111,6 +111,7 @@ hw_df|>
   ggplot(aes(y=tmin))+
   geom_boxplot()
 ```
+
 **Looks a lot more sensible.**
 
 What are the most common values for snowfall? Answering below using `geom_histogram` generated in `ggplot`:
@@ -120,9 +121,10 @@ hw_df |>
   geom_histogram()
 
 ```
+
 **The most common value for snowfall is 0mm. If you google average annual days of snowfall in NYS, you will find that it varries across city and at its highest is about 52 day (in Buffalo, thank you Lake Erie). The data has over two decades of data during which period most of the days per year do not have snowfall.**
 
-## Explortatory Analysis
+## Exploratory Analysis
 
 Make a facetted plot showing the average max temperature in January and in July in each station across years. This is done below using `ggplot.` I received additional formating guidance from [r-graph-gallery.com](https://r-graph-gallery.com/223-faceting-with-ggplot2.html#:~:text=Faceting%20with%20facet_wrap()&text=It%20builds%20a%20new%20chart,charts%20on%20several%20rows%2Fcolumns.).
 ```{r facetted plot}
@@ -296,6 +298,7 @@ total_activity |>
   labs(x ="Age", y= "Total Daily Activity", title = "Effect of Age on Daily Activity by Education Status")
 
 ```
+
 **Across all levels of education, daily activity decreases with age. The slope of the decease is much more noticeable across the life course with those who have less than a high school education compared to other groups. Among those who complete high school, there is a steep reduction from age 40 to 60 with a plateau for the remainder of the life course.**
 
 
@@ -306,6 +309,7 @@ longer |>
   geom_hex(alpha=0.2) + 
   facet_wrap(~education) 
 ```
+
 **There seems to be more women than men active in the early morning hours among those who have more than a high school education. Additionally, in that same group, more men are active than women in the later hours of the day. I do not notice significant differences among other groups. Maybe slightly more men active after 8pm than women among those with a high school education.**
 
 # Problem 3
@@ -399,6 +403,7 @@ ride_summary |>
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
 
 ```
+
 **It seems that median ride duration is longer on the weekends. It was longer overall in 2020, quite significantly so when comparing July of 2020 to July of 2024. July 2020 had much more ridership than July 2024. The gap between 2024 and 2020 is much smaller in January. Maybe COVID played a role in this, since many more people were at home in 2020 and the only solace was getting outside. Additionally, people could have been afraid of using public transportation with other patrons.**
 
 Below I use data in 2024 to make a figure that shows the impact of month, membership status, and bike type on the distribution of ride duration. I chose to use boxplots across each different group. 
@@ -425,4 +430,4 @@ citi_2024 |>
 
 ```
 
-It seems like there isn't too much of a difference in ride duration across month in 2024, type of bike used in 2024, or member status. Maybe even higher ridership among casual riders than members overall. 
+**It seems like there isn't too much of a difference in ride duration across month in 2024, type of bike used in 2024, or member status. Maybe even higher ridership among casual riders than members overall.** 
